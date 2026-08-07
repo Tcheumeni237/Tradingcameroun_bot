@@ -1,36 +1,46 @@
 import os
-import requests
-from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import asyncio
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from pocketoptionapi import PocketOptionAPI # Ligne pour Pocket
 
-load_dotenv()
+# 1. Récupère les variables de Render
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+POCKET_EMAIL = os.environ.get("POCKET_EMAIL")
+POCKET_PASSWORD = os.environ.get("POCKET_PASSWORD")
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-POCKET_EMAIL = os.getenv("POCKET_EMAIL")
-POCKET_PASSWORD = os.getenv("POCKET_PASSWORD")
-
-# Sécurité : crash direct si token manquant
-if not TOKEN:
-    raise ValueError("ERREUR: TELEGRAM_TOKEN manquant dans Environment sur Render!")
+# 2. Connexion Pocket Option
+api = PocketOptionAPI()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Salut bro ✅ Le bot Trading Cameroun est en ligne!")
+    """Commande /start"""
+    keyboard = [
+        [InlineKeyboardButton("📊 Obtenir Signal", callback_data='signal')],
+        [InlineKeyboardButton("💰 Balance", callback_data='balance')],
+        [InlineKeyboardButton("🔌 Connecter Pocket", callback_data='connect')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        '🤖 BIENVENUE SUR MATRIX TOOL\nChoisis une option :', 
+        reply_markup=reply_markup
+    )
 
-async def test_pocket(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if POCKET_EMAIL:
-        await update.message.reply_text(f"Email Pocket: {POCKET_EMAIL}")
-    else:
-        await update.message.reply_text("POCKET_EMAIL pas défini dans Environment")
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère les boutons"""
+    query = update.callback_query
+    await query.answer()
 
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("test", test_pocket))
-    
-    print("Bot started...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    if query.data == 'connect':
+        await query.edit_message_text("Connexion à Pocket Option...")
+        check, reason = await asyncio.to_thread(api.connect, POCKET_EMAIL, POCKET_PASSWORD)
+        if check:
+            await query.edit_message_text("✅ Connecté à Pocket Option avec succès !")
+        else:
+            await query.edit_message_text(f"❌ Erreur connexion: {reason}")
 
-if __name__ == "__main__":
-    main()
+    elif query.data == 'balance':
+        balance = await asyncio.to_thread(api.get_balance)
+        await query.edit_message_text(f"💰 Balance: {balance}$")
+
+    elif query.data == 'signal':
+        await query.edit
