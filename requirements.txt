@@ -1,2 +1,2 @@
 python-telegram-bot
-git+https://github.com/LK00/pocketoptionapi.git
+pocketoption
